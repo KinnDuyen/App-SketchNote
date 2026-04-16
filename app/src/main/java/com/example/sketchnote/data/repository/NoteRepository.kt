@@ -1,5 +1,4 @@
 package com.example.sketchnote.data.repository
-
 import android.content.Context
 import com.example.sketchnote.data.local.SketchNoteDatabase
 import com.example.sketchnote.data.local.dao.ChecklistItemDao
@@ -9,7 +8,6 @@ import com.example.sketchnote.data.local.entity.NoteEntity
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
-
 @Singleton
 class NoteRepository @Inject constructor(
     private val dao: NoteDao,
