@@ -1,44 +1,58 @@
 package com.example.sketchnote
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.fragment.app.FragmentActivity
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.example.sketchnote.ui.editor.EditorScreen
 import com.example.sketchnote.ui.theme.SketchNoteTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() { // Chuyển về ComponentActivity nếu không dùng Fragment đặc biệt
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Bật hiển thị tràn viền (Edge-to-Edge)
         enableEdgeToEdge()
-
         setContent {
             SketchNoteTheme {
-                // Scaffold là khung chuẩn của Material3 để quản lý TopBar, BottomBar và Padding
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "SketchNote User",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    val navController = rememberNavController()
+
+                    // Chỉnh startDestination về "editor/-1" hoặc một route bạn có code
+                    NavHost(navController = navController, startDestination = "editor/-1") {
+
+                        // Chỉ giữ lại EditorScreen vì file này đã có import ở trên
+                        composable(
+                            route = "editor/{noteId}",
+                            arguments = listOf(navArgument("noteId") { type = NavType.IntType })
+                        ) { backStackEntry ->
+                            val noteId = backStackEntry.arguments?.getInt("noteId") ?: -1
+                            EditorScreen(
+                                noteId = noteId,
+                                onBack = {
+                                    if (navController.previousBackStackEntry != null) {
+                                        navController.popBackStack()
+                                    }
+                                }
+                            )
+                        }
+
+                        // Bạn có thể thêm các composable mới vào đây khi code xong các Screen khác
+                    }
                 }
             }
         }
     }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name! Sẵn sàng để bắt đầu code rồi đấy.",
-        modifier = modifier
-    )
 }
