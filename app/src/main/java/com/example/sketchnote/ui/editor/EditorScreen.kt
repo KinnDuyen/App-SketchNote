@@ -1,267 +1,244 @@
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun EditorScreen(
-    noteId: Int,
-    onBack: () -> Unit,
-    viewModel: EditorViewModel = hiltViewModel()
+LazyColumn(
+modifier = Modifier.fillMaxWidth().weight(1f),
+verticalArrangement = Arrangement.spacedBy(0.dp)
 ) {
-    LaunchedEffect(noteId) { viewModel.loadNote(noteId) }
-
-    val context = LocalContext.current
-    val title by viewModel.title.collectAsStateWithLifecycle()
-    val colorTag by viewModel.colorTag.collectAsStateWithLifecycle()
-    val imagePaths by viewModel.imagePaths.collectAsStateWithLifecycle()
-    val reminderTime by viewModel.reminderTime.collectAsStateWithLifecycle()
-    val type by viewModel.type.collectAsStateWithLifecycle()
-    val contentBlocks by viewModel.contentBlocks.collectAsStateWithLifecycle()
-
-    var showHighlightPicker by remember { mutableStateOf(false) }
-    var currentHighlightBlockId by remember { mutableStateOf<String?>(null) }
-    var currentSelectionRange by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    var showSketchDialog by remember { mutableStateOf(false) }
-    var editingSketchBlockId by remember { mutableStateOf<String?>(null) }
-    var activeTool by remember { mutableStateOf<String?>(null) }
-    var cameraUri by remember { mutableStateOf<Uri?>(null) }
-    var showExportMenu by remember { mutableStateOf(false) }
-    val speechHelper = remember { SpeechHelper(context) }
-    var isListening by remember { mutableStateOf(false) }
-
-    var suggestedTag by remember { mutableStateOf<String?>(null) }
-    val allText = contentBlocks.filterIsInstance<ContentBlock.TextBlock>()
-        .joinToString(" ") { it.text }
-    LaunchedEffect(title, allText) {
-        kotlinx.coroutines.delay(800)
-        val tag = AutoTagUtils.suggestTag(title, allText)
-        if (tag != null && tag != colorTag) suggestedTag = tag
+    item { ColorTagPicker(selected = colorTag, onSelect = viewModel::onColorTagChange) }
+    item {
+        ReminderSection(
+            reminderTime = reminderTime,
+            onSetReminder = { viewModel.onReminderChange(it) },
+            onClearReminder = { viewModel.onReminderChange(0L) }
+        )
     }
 
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) cameraUri?.let { viewModel.addImagePath(it.toString()) }
-        activeTool = null
-    }
-
-    val cameraPermLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            try {
-                val dir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
-                    ?: context.filesDir
-                dir.mkdirs()
-                val file = File(dir, "photo_${System.currentTimeMillis()}.jpg")
-                val uri = FileProvider.getUriForFile(
-                    context, "${context.packageName}.fileprovider", file
-                )
-                cameraUri = uri
-                cameraLauncher.launch(uri)
-            } catch (e: Exception) {
-                Toast.makeText(context, "Không thể mở camera", Toast.LENGTH_SHORT).show()
-                activeTool = null
-            }
-        } else {
-            Toast.makeText(context, "Cần quyền camera", Toast.LENGTH_SHORT).show()
-            activeTool = null
-        }
-    }
-
-    val micPermLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            isListening = true; activeTool = "mic"
-            speechHelper.startListening(
-                onResult = { text ->
-                    val id = contentBlocks.filterIsInstance<ContentBlock.TextBlock>()
-                        .lastOrNull()?.id
-                    if (id != null) {
-                        val cur = (contentBlocks.find { it.id == id }
-                                as? ContentBlock.TextBlock)?.text ?: ""
-                        viewModel.updateTextBlock(id, "$cur $text")
-                    }
-                    isListening = false; activeTool = null
-                },
-                onError = { isListening = false; activeTool = null }
-            )
-        }
-    }
-
-    val ocrLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            OcrUtils.recognizeText(
-                context = context, imageUri = it,
-                onSuccess = { text ->
-                    val id = contentBlocks.filterIsInstance<ContentBlock.TextBlock>()
-                        .lastOrNull()?.id
-                    if (id != null) {
-                        val cur = (contentBlocks.find { it.id == id }
-                                as? ContentBlock.TextBlock)?.text ?: ""
-                        viewModel.updateTextBlock(id, "$cur\n$text")
-                    }
-                },
-                onError = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() }
-            )
-        }
-        activeTool = null
-    }
-
-    val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetMultipleContents()
-    ) { uris -> uris.forEach { viewModel.addImagePath(it.toString()) }; activeTool = null }
-
-    Scaffold(containerColor = Color(0xFFFBFCF7)) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-
-            // ── Top bar ───────────────────────────────────────────────────────
-            Row(
+    if (suggestedTag != null && suggestedTag != colorTag) {
+        item {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                ),
                 modifier = Modifier.fillMaxWidth()
-                    .padding(horizontal = 18.dp).padding(top = 10.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
             ) {
-                SketchNoteLogo(modifier = Modifier.height(46.dp))
-                IconButton(
-                    onClick = { viewModel.shareNote(context) },
-                    modifier = Modifier.size(48.dp)
+                Row(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        painter = painterResource(R.drawable.share), contentDescription = "Chia sẻ",
-                        tint = Color.Unspecified, modifier = Modifier.size(24.dp)
+                    Text(
+                        "Gợi ý nhãn: $suggestedTag", fontSize = 13.sp,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
+                    TextButton(onClick = {
+                        viewModel.onColorTagChange(suggestedTag!!); suggestedTag = null
+                    }) { Text("Áp dụng") }
+                    TextButton(onClick = { suggestedTag = null }) { Text("Bỏ qua") }
                 }
             }
+        }
+    }
 
-            // ── Back + Action bar ─────────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+    item {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    }
+
+    item {
+        TextField(
+            value = title, onValueChange = viewModel::onTitleChange,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            placeholder = {
+                Text(
+                    "Tiêu đề", fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                )
+            },
+            textStyle = LocalTextStyle.current.copy(
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            colors = TextFieldDefaults.colors(
+                unfocusedContainerColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedIndicatorColor = Color.Transparent
+            )
+        )
+    }
+
+    if (imagePaths.isNotEmpty()) {
+        item {
+            Text(
+                "Ảnh đính kèm", fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 2.dp)
+            )
+        }
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp)
             ) {
-                IconButton(
-                    onClick = { viewModel.saveNote(context, onBack) },
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.arrow),
-                        contentDescription = "Quay lại",
-                        tint = Color.Unspecified,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier.weight(1f)
-                        .shadow(elevation = 4.dp, shape = RoundedCornerShape(20.dp)),
-                    color = Color.White, shape = RoundedCornerShape(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        ActionToolButton(R.drawable.mic, "Ghi âm", activeTool == "mic") {
-                            if (isListening) {
-                                speechHelper.stopListening(); isListening = false; activeTool = null
-                            } else {
-                                activeTool =
-                                    "mic"; micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        }
-                        ActionToolButton(R.drawable.pen, "Vẽ", activeTool == "sketch") {
-                            activeTool = null; editingSketchBlockId = null; showSketchDialog = true
-                        }
-                        Box(contentAlignment = Alignment.Center) {
-                            ActionToolButton(
-                                R.drawable.send, "Xuất",
-                                activeTool == "export" || showExportMenu
-                            ) {
-                                activeTool = "export"; showExportMenu = true
-                            }
-                            DropdownMenu(
-                                expanded = showExportMenu,
-                                onDismissRequest = { showExportMenu = false; activeTool = null }) {
-                                DropdownMenuItem(
-                                    text = { Text("Xuất ảnh JPG") },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.Image,
-                                            null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    },
-                                    onClick = {
-                                        showExportMenu = false; activeTool = null
-                                        viewModel.saveNote(context) {
-                                            val note = NoteEntity(
-                                                id = noteId.coerceAtLeast(0), title = title,
-                                                content = contentBlocks.filterIsInstance<ContentBlock.TextBlock>()
-                                                    .joinToString("\n") { it.text },
-                                                type = type, colorTag = colorTag,
-                                                imagePaths = imagePaths.joinToString("||"),
-                                                reminderTime = reminderTime
-                                            )
-                                            ExportUtils.exportAsImage(context, note)
-                                                ?.let {
-                                                    ExportUtils.shareFile(
-                                                        context,
-                                                        it,
-                                                        "image/jpeg"
-                                                    )
-                                                }
-                                        }
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Xuất PDF") },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.PictureAsPdf,
-                                            null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    },
-                                    onClick = {
-                                        showExportMenu = false; activeTool = null
-                                        viewModel.saveNote(context) {
-                                            val note = NoteEntity(
-                                                id = noteId.coerceAtLeast(0), title = title,
-                                                content = contentBlocks.filterIsInstance<ContentBlock.TextBlock>()
-                                                    .joinToString("\n") { it.text },
-                                                type = type, colorTag = colorTag,
-                                                imagePaths = imagePaths.joinToString("||"),
-                                                reminderTime = reminderTime
-                                            )
-                                            ExportUtils.exportAsPdf(context, note)
-                                                ?.let {
-                                                    ExportUtils.shareFile(
-                                                        context,
-                                                        it,
-                                                        "application/pdf"
-                                                    )
-                                                }
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                        ActionToolButton(R.drawable.scan, "Quét chữ", activeTool == "ocr") {
-                            activeTool = "ocr"; ocrLauncher.launch("image/*")
-                        }
-                        ActionToolButton(R.drawable.cam, "Chụp ảnh", activeTool == "cam") {
-                            activeTool =
-                                "cam"; cameraPermLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                        ActionToolButton(R.drawable.image, "Thêm ảnh", activeTool == "gallery") {
-                            activeTool = "gallery"; galleryLauncher.launch("image/*")
+                itemsIndexed(imagePaths) { index, path ->
+                    Box(modifier = Modifier.size(100.dp)) {
+                        AsyncImage(
+                            model = if (path.startsWith("content://")) Uri.parse(path)
+                            else File(path),
+                            contentDescription = null, contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                                .clip(RoundedCornerShape(10.dp))
+                        )
+                        IconButton(
+                            onClick = { viewModel.removeImagePath(index) },
+                            modifier = Modifier.align(Alignment.TopEnd).size(24.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Icon(
+                                Icons.Default.Close, null, tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
                         }
                     }
                 }
             }
+        }
+        item {
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 8.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+        }
+    }
+}
+}
+}
+}
 
-            Spacer(Modifier.height(8.dp))
+// ── ActionToolButton — vòng tròn vàng khi active ─────────────────────────────
+@Composable
+private fun ActionToolButton(
+    drawableRes: Int,
+    label: String,
+    isActive: Boolean,
+    onClick: () -> Unit
+) {
+    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(40.dp)
+                .then(if (isActive)
+                    Modifier.background(Color(0xFFFCC701).copy(alpha = 0.15f), CircleShape)
+                else Modifier)
+                .clip(CircleShape)
+                .clickable(onClick = onClick)
+        ) {
+            Icon(painter = painterResource(drawableRes), contentDescription = label,
+                tint = Color.Unspecified, modifier = Modifier.size(22.dp))
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .size(5.dp).clip(CircleShape)
+                .background(if (isActive) Color(0xFFFCC701) else Color.Transparent)
+        )
+    }
+}
+
+// ── ColorTagPicker ────────────────────────────────────────────────────────────
+@Composable
+fun ColorTagPicker(selected: String, onSelect: (String) -> Unit) {
+    val tags = listOf("NONE", "RED", "ORANGE", "PURPLE", "GREEN", "BLUE")
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        itemsIndexed(tags) { _, tag ->
+            val sel = selected == tag
+            Box(
+                modifier = Modifier
+                    .height(26.dp).width(58.dp)
+                    .shadow(elevation = if (sel) 0.dp else 3.dp, shape = RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(tagToPillColor(tag))
+                    .border(
+                        width = if (sel) 2.dp else 0.dp,
+                        color = if (sel) tagToBorderColor(tag) else Color.Transparent,
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .clickable { onSelect(tag) }
+            )
+        }
+    }
+}
+
+// ── ReminderSection ───────────────────────────────────────────────────────────
+@Composable
+fun ReminderSection(
+    reminderTime: Long,
+    onSetReminder: (Long) -> Unit,
+    onClearReminder: () -> Unit
+) {
+    val context = LocalContext.current
+    val hasReminder = reminderTime > System.currentTimeMillis()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Surface(
+            modifier = Modifier.size(48.dp)
+                .shadow(elevation = 3.dp, shape = RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp), color = Color.White
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(painter = painterResource(R.drawable.ring), contentDescription = null,
+                    tint = Color.Unspecified, modifier = Modifier.size(24.dp))
+            }
+        }
+        Surface(
+            modifier = Modifier.height(48.dp)
+                .shadow(elevation = 3.dp, shape = RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp), color = Color.White
+        ) {
+            if (hasReminder) {
+                Row(modifier = Modifier.padding(horizontal = 14.dp).fillMaxHeight(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault())
+                            .format(java.util.Date(reminderTime)),
+                        fontSize = 13.sp, color = Color(0xFFE8B800),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    IconButton(onClick = onClearReminder, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, null, modifier = Modifier.size(14.dp), tint = Color.Gray)
+                    }
+                }
+            } else {
+                TextButton(
+                    onClick = {
+                        val cal = java.util.Calendar.getInstance()
+                        android.app.DatePickerDialog(context, { _, y, m, d ->
+                            android.app.TimePickerDialog(context, { _, h, min ->
+                                cal.set(y, m, d, h, min, 0); onSetReminder(cal.timeInMillis)
+                            }, cal.get(java.util.Calendar.HOUR_OF_DAY),
+                                cal.get(java.util.Calendar.MINUTE), true).show()
+                        }, cal.get(java.util.Calendar.YEAR),
+                            cal.get(java.util.Calendar.MONTH),
+                            cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+                    },
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    modifier = Modifier.fillMaxHeight()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.Add, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                        Text("Nhắc nhở", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF333333))
+                    }
+                }
+            }
         }
     }
 }
