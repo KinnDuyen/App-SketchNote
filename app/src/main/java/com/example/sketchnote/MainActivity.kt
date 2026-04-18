@@ -12,6 +12,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.sketchnote.ui.trash.TrashScreen
 import androidx.navigation.navArgument
 import com.example.sketchnote.ui.editor.EditorScreen
 import com.example.sketchnote.ui.theme.SketchNoteTheme
@@ -47,6 +48,9 @@ class MainActivity : FragmentActivity() {
                                     }
                                 }
                             )
+                        }
+                        composable("trash") {
+                            TrashScreen(onBack = { navController.popBackStack() })
                         }
 
                         // Bạn có thể thêm các composable mới vào đây khi code xong các Screen khác
