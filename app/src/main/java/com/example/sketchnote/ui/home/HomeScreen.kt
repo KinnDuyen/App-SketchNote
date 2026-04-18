@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -130,7 +131,7 @@ fun HomeScreen(
                     painter = painterResource(id = R.drawable.ic_logo_sketchnote),
                     contentDescription = "Logo",
                     modifier = Modifier
-                        .height(85.dp)
+                        .height(60.dp)
                         .align(Alignment.TopStart)
                         .padding(start = 16.dp, top = 8.dp),
                     contentScale = ContentScale.Fit
@@ -153,7 +154,7 @@ fun HomeScreen(
                     contentDescription = "Mèo banner",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .height(160.dp)
                         .align(Alignment.TopCenter)
                         .padding(
                             top = 65.dp,
@@ -234,12 +235,18 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .size(width = 55.dp, height = 28.dp)
-                                .background(color, RoundedCornerShape(20.dp))
-                                .border(
-                                    width = if (isSelected) 2.dp else 0.dp,
-                                    color = if (isSelected) Color.Black.copy(0.2f) else Color.Transparent,
+                                .then(
+                                    if (isSelected) Modifier.border(
+                                        width = 2.5.dp,
+                                        color = Color.Black.copy(alpha = 0.45f),
+                                        shape = RoundedCornerShape(20.dp)
+                                    ) else Modifier
+                                )
+                                .background(
+                                    color = if (isSelected) color.copy(alpha = 0.6f) else color,
                                     shape = RoundedCornerShape(20.dp)
                                 )
+                                .clip(RoundedCornerShape(20.dp))
                                 .clickable { viewModel.onColorFilterChange(filter) }
                         )
                     }
@@ -309,9 +316,16 @@ fun HeaderActionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, onCl
 @Composable
 fun NoteCard(note: NoteEntity, onClick: () -> Unit, onDelete: () -> Unit, onTogglePin: () -> Unit) {
     val borderColor = colorTagToDark(note.colorTag)
+    val shape = RoundedCornerShape(20.dp)
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .clickable(
+                indication = androidx.compose.material.ripple.rememberRipple(color = Color.Black),
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            ) { onClick() },
+        shape = shape,
         shadowElevation = 4.dp,
         color = Color.White,
         border = BorderStroke(3.dp, borderColor)
