@@ -390,13 +390,6 @@ fun EditorScreen(
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 item { ColorTagPicker(selected = colorTag, onSelect = viewModel::onColorTagChange) }
-                item {
-                    ReminderSection(
-                        reminderTime = reminderTime,
-                        onSetReminder = { viewModel.onReminderChange(it) },
-                        onClearReminder = { viewModel.onReminderChange(0L) }
-                    )
-                }
 
                 if (suggestedTag != null && suggestedTag != colorTag) {
                     item {
@@ -498,12 +491,17 @@ fun EditorScreen(
                 }
 
                 item {
-                    val boxColor = tagToBoxColor(colorTag)
+                    val borderColor = tagToBorderColor(colorTag)
                     Surface(
                         modifier = Modifier.fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .shadow(elevation = 4.dp, shape = RoundedCornerShape(20.dp)),
-                        color = boxColor, shape = RoundedCornerShape(20.dp)
+                            .shadow(elevation = 4.dp, shape = RoundedCornerShape(20.dp))
+                            .border(
+                                width = 2.dp,
+                                color = borderColor,
+                                shape = RoundedCornerShape(20.dp)
+                            ),
+                        color = Color.White, shape = RoundedCornerShape(20.dp)
                     ) {
                         Column(modifier = Modifier.padding(4.dp)) {
                             contentBlocks.forEach { block ->
@@ -699,77 +697,6 @@ fun ColorTagPicker(selected: String, onSelect: (String) -> Unit) {
                     )
                     .clickable { onSelect(tag) }
             )
-        }
-    }
-}
-
-// ── ReminderSection ───────────────────────────────────────────────────────────
-@Composable
-fun ReminderSection(
-    reminderTime: Long,
-    onSetReminder: (Long) -> Unit,
-    onClearReminder: () -> Unit
-) {
-    val context = LocalContext.current
-    val hasReminder = reminderTime > System.currentTimeMillis()
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Surface(
-            modifier = Modifier.size(48.dp)
-                .shadow(elevation = 3.dp, shape = RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp), color = Color.White
-        ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Icon(painter = painterResource(R.drawable.ring), contentDescription = null,
-                    tint = Color.Unspecified, modifier = Modifier.size(24.dp))
-            }
-        }
-        Surface(
-            modifier = Modifier.height(48.dp)
-                .shadow(elevation = 3.dp, shape = RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp), color = Color.White
-        ) {
-            if (hasReminder) {
-                Row(modifier = Modifier.padding(horizontal = 14.dp).fillMaxHeight(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault())
-                            .format(java.util.Date(reminderTime)),
-                        fontSize = 13.sp, color = Color(0xFFE8B800),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    IconButton(onClick = onClearReminder, modifier = Modifier.size(24.dp)) {
-                        Icon(Icons.Default.Close, null, modifier = Modifier.size(14.dp), tint = Color.Gray)
-                    }
-                }
-            } else {
-                TextButton(
-                    onClick = {
-                        val cal = java.util.Calendar.getInstance()
-                        android.app.DatePickerDialog(context, { _, y, m, d ->
-                            android.app.TimePickerDialog(context, { _, h, min ->
-                                cal.set(y, m, d, h, min, 0); onSetReminder(cal.timeInMillis)
-                            }, cal.get(java.util.Calendar.HOUR_OF_DAY),
-                                cal.get(java.util.Calendar.MINUTE), true).show()
-                        }, cal.get(java.util.Calendar.YEAR),
-                            cal.get(java.util.Calendar.MONTH),
-                            cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
-                    },
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                    modifier = Modifier.fillMaxHeight()
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Icon(Icons.Default.Add, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
-                        Text("Nhắc nhở", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF333333))
-                    }
-                }
-            }
         }
     }
 }
