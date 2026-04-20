@@ -63,11 +63,6 @@ object MathCalculator {
         return Pair(numStr.toDoubleOrNull() ?: 0.0, i)
     }
 
-    /**
-     * Phát hiện biểu thức toán trong text và tính kết quả.
-     * Khi user nhập "2+3=" cuối dòng → trả về "= 5"
-     * Khi text đã có "= 5" rồi → không tính lại.
-     */
     fun detectAndCalculate(text: String): String? {
         // Nếu text đã có kết quả rồi thì bỏ qua
         if (text.contains(Regex("""=\s*-?\d"""))) return null
