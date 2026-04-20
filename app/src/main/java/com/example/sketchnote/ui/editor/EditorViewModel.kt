@@ -377,4 +377,119 @@ class EditorViewModel @Inject constructor(
         _type.value = if (_type.value == "TEXT") "CHECKLIST" else "TEXT"
     }
 
+    fun addChecklistItem() {
+        val newItem = ChecklistItemEntity(
+            noteId = currentNoteId.coerceAtLeast(0),
+            text = "",
+            isChecked = false,
+            order = _checklistItems.value.size
+        )
+        _checklistItems.value = _checklistItems.value + newItem
+    }
+
+    fun updateChecklistItem(index: Int, text: String) {
+        _checklistItems.value = _checklistItems.value.toMutableList().also {
+            it[index] = it[index].copy(text = text)
+        }
+    }
+
+    fun toggleChecklistItem(index: Int) {
+        _checklistItems.value = _checklistItems.value.toMutableList().also {
+            it[index] = it[index].copy(isChecked = !it[index].isChecked)
+        }
+    }
+
+    fun removeChecklistItem(index: Int) {
+        _checklistItems.value = _checklistItems.value.toMutableList().also { it.removeAt(index) }
+    }
+
+    fun shareNote(context: Context) {
+        viewModelScope.launch {
+            val plainText = _contentBlocks.value
+                .filterIsInstance<ContentBlock.TextBlock>()
+                .joinToString("\n") { it.text }
+
+            val shareText = buildString {
+                if (_title.value.isNotBlank()) {
+                    append(_title.value)
+                    append("\n\n")
+                }
+                if (_type.value == "CHECKLIST") {
+                    _checklistItems.value.forEach { item ->
+                        append(if (item.isChecked) "☑ " else "☐ ")
+                        append(item.text)
+                        append("\n")
+                    }
+                } else {
+                    append(plainText)
+                }
+            }
+
+            val imageUris = mutableListOf<android.net.Uri>()
+
+            _imagePaths.value.forEach { path ->
+                try {
+                    val uri = if (path.startsWith("content://")) {
+                        android.net.Uri.parse(path)
+                    } else {
+                        androidx.core.content.FileProvider.getUriForFile(
+                            context,
+                            "${context.packageName}.fileprovider",
+                            java.io.File(path)
+                        )
+                    }
+                    imageUris.add(uri)
+                } catch (e: Exception) { }
+            }
+
+            _contentBlocks.value
+                .filterIsInstance<ContentBlock.SketchBlock>()
+                .forEach { block ->
+                    if (block.imagePath.isNotBlank()) {
+                        try {
+                            val file = File(block.imagePath)
+                            if (file.exists()) {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    file
+                                )
+                                imageUris.add(uri)
+                            }
+                        } catch (e: Exception) { }
+                    }
+                }
+
+            val intent = if (imageUris.isEmpty()) {
+                android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, _title.value)
+                }
+            } else if (imageUris.size == 1) {
+                android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "image/*"
+                    putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, _title.value)
+                    putExtra(android.content.Intent.EXTRA_STREAM, imageUris[0])
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            } else {
+                android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
+                    type = "image/*"
+                    putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                    putExtra(android.content.Intent.EXTRA_SUBJECT, _title.value)
+                    putParcelableArrayListExtra(
+                        android.content.Intent.EXTRA_STREAM,
+                        ArrayList(imageUris)
+                    )
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+            }
+
+            context.startActivity(
+                android.content.Intent.createChooser(intent, "Chia sẻ ghi chú")
+            )
+        }
+    }
 }
